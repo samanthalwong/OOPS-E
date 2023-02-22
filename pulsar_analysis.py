@@ -271,7 +271,6 @@ print('===================================================')
 config = sys.argv[1]
 cumulative = sys.argv[2]
 phasogram = sys.argv[3]
-fit = sys.argv[4]
 
 with open(config, 'r') as file:
     params = yaml.load(file,Loader=yaml.FullLoader)
@@ -376,15 +375,13 @@ log.write(f'T2 peak @ {peak_freq2} Hz\n')
 log.write(f'T3 peak @ {peak_freq3} Hz\n')
 log.write(f'T4 peak @ {peak_freq4} Hz\n')
 
-if cumulative:
+if cumulative: #calculates + plots cumulative significance
     csig_times, csig_sigs = cumulative_sig(signal2,signal3,signal4,times,10,start,name,plot=True)
     np.savetxt('csig_data.txt',np.c_[csig_times,csig_sigs])
 
-if phasogram:
+if phasogram: #plots phasogram
     nbins = 100
     bins,folded_signal,fs_err = phase_fold(signal2,times,ephemeris,nbins,name,plot=True)
     np.savetxt('phase_fold.txt',np.c_[bins,folded_signal,fs_err])
-
-
 
 log.close()

@@ -8,6 +8,7 @@ from datetime import datetime
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 from tqdm import tqdm
+import os
 
 matplotlib.use('Agg')
 
@@ -125,7 +126,7 @@ def calc_sig(signal,time,ephemeris):
     peak_freq = frequency[np.where(power == peak)[0][0]]
     return sigma, peak, peak_freq, noise
 
-def cumulative_sig(s2,s3,s4,time,n,tmin,name,plot=True):
+def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,plot=True):
     """
     :param s2: T2 signal (array)
     :param s3: T3 signal (array)
@@ -134,6 +135,7 @@ def cumulative_sig(s2,s3,s4,time,n,tmin,name,plot=True):
     :param n: Number of points at which significance is calculated
     :param tmin: Run start time (from parameter file) (float)
     :param name: Pulsar name (string)
+    :param dir: Which directory to save plot to (string)
     :param plot: If true, saves cumulative significance plot (boolean)
     :return: times,sigs arrays of times and significances at each time interval
     """
@@ -190,7 +192,7 @@ def cumulative_sig(s2,s3,s4,time,n,tmin,name,plot=True):
         plt.title(f'{name} 3-Tel Cumulative Significance')
         plt.grid(which='major')
         plt.grid(which='minor')
-        plt.savefig('csig.png',format='png')
+        plt.savefig(dir+'/csig.png',format='png')
 
     return times, significance
 
@@ -213,10 +215,10 @@ def whiten(signal,ephemeris,sample):
     smooth = np.append(fill, temp2)
     smooth_fft = np.fft.rfft(smooth)
     norm = 1./np.sqrt(1./(1/sample*2))
-    white = smooth_fft / np.sqrt(psd) * norm
+    white = smooth_fft / np.sqrt(ps) * norm
     return np.fft.irfft(white)
 
-def phase_fold(signal,time,ephemeris,nbins,name,plot=True):
+def phase_fold(signal,time,ephemeris,nbins,name,dir,plot=True):
     """
     :param signal: Pulsar signal array (can be pre-whitened)
     :param time: Time array
@@ -224,6 +226,7 @@ def phase_fold(signal,time,ephemeris,nbins,name,plot=True):
     :param nbins: Number of bins in phasogram
     :param plot: (boolean) If true, plot results
     :param name: Pulsar name
+    :param dir: Directory to save plot to
     :return: bins, signal, error
     """
 
@@ -251,7 +254,7 @@ def phase_fold(signal,time,ephemeris,nbins,name,plot=True):
         plt.ylabel('Voltage [V]')
         plt.xlabel('Phase')
         plt.grid()
-        plt.savefig('phasogram.png',format='png')
+        plt.savefig(dir+'/phasogram.png',format='png')
 
     return bins, sig, err
 
@@ -267,6 +270,8 @@ print('===================================================')
 config = sys.argv[1]
 cumulative = sys.argv[2]
 phasogram = sys.argv[3]
+data_dir = sys.argv[4]
+out_dir = sys.argv[5]
 
 with open(config, 'r') as file:
     params = yaml.load(file,Loader=yaml.FullLoader)
@@ -278,8 +283,12 @@ dur = params['duration'] #run duration - unused but could be used to improve eph
 sample = params['sample'] #sample rate (usually 2400 unless specified otherwise)
 ntel = params['ntel'] #number of telescopes to use (usually 3)
 
+#create out directory if it doesn't exist
+if not os.path.isdir(out_dir):
+    os.makedirs(out_dir)
+
 #log file
-logfile = name + '_' + str(date) + '_' + str(sample) + '_log.txt'
+logfile = out_dir + '/' + name + '_' + str(date) + '_' + str(sample) + '_log.txt'
 log = open(logfile,"w")
 
 log.write('OOPS-E Pulsar Analysis Script\n')
@@ -294,7 +303,7 @@ log.write(f'------------------------------\n')
 log.write('\n')
 
 #Read files - extract signals and make time arrays
-times, signals = read_files(dir,date,sample,ntel)
+times, signals = read_files(data_dir,date,sample,ntel)
 times = np.array(times)
 
 #Apply time cuts
@@ -372,12 +381,12 @@ log.write(f'T3 peak @ {peak_freq3} Hz\n')
 log.write(f'T4 peak @ {peak_freq4} Hz\n')
 
 if cumulative: #calculates + plots cumulative significance
-    csig_times, csig_sigs = cumulative_sig(signal2,signal3,signal4,times,10,start,name,plot=True)
+    csig_times, csig_sigs = cumulative_sig(signal2,signal3,signal4,times,10,start,name,out_dir,plot=True)
     np.savetxt(name+'_csig_data.txt',np.c_[csig_times,csig_sigs])
 
 if phasogram: #plots phasogram
     nbins = 100
-    bins,folded_signal,fs_err = phase_fold(signal2,times,ephemeris,nbins,name,plot=True)
+    bins,folded_signal,fs_err = phase_fold(signal2,times,ephemeris,nbins,name,out_dir,plot=True)
     np.savetxt(name+'_phase_fold.txt',np.c_[bins,folded_signal,fs_err])
 
 log.close()

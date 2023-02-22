@@ -68,7 +68,7 @@ def get_ephemeris(date, time):
 
     return ephemeris
 
-def read_files(date,sample,tels=3):
+def read_files(dir,date,sample,tels=3):
 
     """
     :param date: Run date
@@ -76,16 +76,12 @@ def read_files(date,sample,tels=3):
     :param tels: # of telescopes used (3 by default since T1 usually saturates)
     :return: time,signals arrays of time and signal values for each telescope (single time array for T2/T3/T4)
     """
-
+    dir = str(dir)
     date = str(date)
 
-    #t2 = "/raid/romulus/swong/ecm/d" + date + "/" + date + "-Crab-T2.csv"
-    #t3 = "/raid/romulus/swong/ecm/d" + date + "/" + date + "-Crab-T3.csv"
-    #t4 = "/raid/romulus/swong/ecm/d" + date + "/" + date + "-Crab-T4.csv"
-
-    t2 = "data/" +  date + "-Crab-T2.csv"
-    t3 = "data/" + date + "-Crab-T3.csv"
-    t4 = "data/" + date + "-Crab-T4.csv"
+    t2 = dir + "/" + date + "-Crab-T2.csv"
+    t3 = dir + "/" + date + "-Crab-T3.csv"
+    t4 = dir + "/" + date + "-Crab-T4.csv"
 
     print('Reading T2')
     time2, signal2 = np.genfromtxt(t2, delimiter=',', unpack=True, usecols=(0, 1), skip_header=3)
@@ -298,7 +294,7 @@ log.write(f'------------------------------\n')
 log.write('\n')
 
 #Read files - extract signals and make time arrays
-times, signals = read_files(date,sample,ntel)
+times, signals = read_files(dir,date,sample,ntel)
 times = np.array(times)
 
 #Apply time cuts

@@ -275,7 +275,7 @@ phasogram = sys.argv[3]
 with open(config, 'r') as file:
     params = yaml.load(file,Loader=yaml.FullLoader)
 
-name = params['name'] #pulsar name
+name = str(params['name']) #pulsar name
 date = params['date'] #run date
 run_time = params['time'] #run start time
 dur = params['duration'] #run duration - unused but could be used to improve ephemeris
@@ -283,7 +283,7 @@ sample = params['sample'] #sample rate (usually 2400 unless specified otherwise)
 ntel = params['ntel'] #number of telescopes to use (usually 3)
 
 #log file
-logfile = str(date) + '_' + str(sample) + '_log.txt'
+logfile = name + '_' + str(date) + '_' + str(sample) + '_log.txt'
 log = open(logfile,"w")
 
 log.write('OOPS-E Pulsar Analysis Script\n')
@@ -377,11 +377,11 @@ log.write(f'T4 peak @ {peak_freq4} Hz\n')
 
 if cumulative: #calculates + plots cumulative significance
     csig_times, csig_sigs = cumulative_sig(signal2,signal3,signal4,times,10,start,name,plot=True)
-    np.savetxt('csig_data.txt',np.c_[csig_times,csig_sigs])
+    np.savetxt(name+'_csig_data.txt',np.c_[csig_times,csig_sigs])
 
 if phasogram: #plots phasogram
     nbins = 100
     bins,folded_signal,fs_err = phase_fold(signal2,times,ephemeris,nbins,name,plot=True)
-    np.savetxt('phase_fold.txt',np.c_[bins,folded_signal,fs_err])
+    np.savetxt(name+'_phase_fold.txt',np.c_[bins,folded_signal,fs_err])
 
 log.close()

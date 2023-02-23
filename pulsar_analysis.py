@@ -45,7 +45,7 @@ logfile = out_dir + '/' + name + '_' + str(date) + '_' + str(sample) + '_log.txt
 log = open(logfile,"w")
 
 log.write('OOPS-E Pulsar Analysis Script\n')
-log.write('Samantha Wong 2023\n')
+log.write('Developed by Samantha Wong 2023\n')
 log.write(datetime.now().strftime("%m/%d/%Y, %H:%M:%S"))
 log.write('\n')
 log.write(f'RUN DATE: {date}\n')

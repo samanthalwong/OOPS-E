@@ -218,7 +218,7 @@ def whiten(signal,ephemeris,sample):
     white = smooth_fft / np.sqrt(ps) * norm
     return np.fft.irfft(white)
 
-def phase_fold(signal,time,ephemeris,nbins,name,dir,plot=True):
+def phase_fold(signal,time,p,nbins,name,dir,tel,plot=True):
     """
     :param signal: Pulsar signal array (can be pre-whitened)
     :param time: Time array
@@ -227,6 +227,7 @@ def phase_fold(signal,time,ephemeris,nbins,name,dir,plot=True):
     :param plot: (boolean) If true, plot results
     :param name: Pulsar name
     :param dir: Directory to save plot to
+    :param tel: Telescope name
     :return: bins, signal, error
     """
 
@@ -241,35 +242,39 @@ def phase_fold(signal,time,ephemeris,nbins,name,dir,plot=True):
             counts_bin[i - 1] = len(signal[idx])
         return counts_bin, std_bin, sum_bin
 
-
     bins = np.linspace(0, 1, nbins)
-    period = 1/ephemeris
-    phase = np.abs((time) / period) - np.abs(np.floor((time) / period))
+    phase = np.abs((time) * p) - np.abs(np.floor((time) * p))
     counts, std, sig = phase_bin(signal, phase, bins)
-    err = std / np.sqrt(counts)
+    err = std[:-1] / np.sqrt(counts[:-1])
 
     if plot:
-        plt.errorbar(bins, sig, yerr=err, fmt='.', color='k')
+        peakphase = bins[np.where(sig == np.max(sig))[0][0]]
+        dx = bins[1] - bins[0]
+        shift = int((0.2 - peakphase) / dx)
+        new_peak = phase[np.where(np.roll(sig,shift) == np.max(np.roll(sig,shift)))[0][0]]
+        plt.clf()
+        plt.errorbar(bins[:-1], np.roll(sig,shift)[:-1], yerr=err, fmt='.', color='k',alpha=0.7)
+        plt.errorbar(bins[:-1], sig[:-1], yerr=err, fmt='.', color='g', alpha=0.3)
         plt.title(f'{name} Phasogram')
         plt.ylabel('Voltage [V]')
         plt.xlabel('Phase')
         plt.grid()
-        plt.savefig(dir+'/phasogram.png',format='png')
+        plt.savefig(dir+'/' + tel + '_' + 'phasogram.png',format='png')
 
-    return bins, sig, err
+    return bins[:-1], sig[:-1], err
 
 
 print('===================================================')
 print('===================================================')
 print('========== OOPS-E Pulsar Analysis Script ==========')
-print('============ (C) 2023 Samantha Wong ===============')
+print('============= Samantha Wong (2023) ================')
 print('===================================================')
 print('===================================================')
 
 #Read in configuration parameters
 config = sys.argv[1]
-cumulative = sys.argv[2]
-phasogram = sys.argv[3]
+cumulative = bool(int(sys.argv[2]))
+phasogram = bool(int(sys.argv[3]))
 data_dir = sys.argv[4]
 out_dir = sys.argv[5]
 
@@ -382,11 +387,14 @@ log.write(f'T4 peak @ {peak_freq4} Hz\n')
 
 if cumulative: #calculates + plots cumulative significance
     csig_times, csig_sigs = cumulative_sig(signal2,signal3,signal4,times,10,start,name,out_dir,plot=True)
-    np.savetxt(name+'_csig_data.txt',np.c_[csig_times,csig_sigs])
+    np.savetxt(out_dir + '/' + name+'_csig_data.txt',np.c_[csig_times,csig_sigs])
 
 if phasogram: #plots phasogram
-    nbins = 100
-    bins,folded_signal,fs_err = phase_fold(signal2,times,ephemeris,nbins,name,out_dir,plot=True)
-    np.savetxt(name+'_phase_fold.txt',np.c_[bins,folded_signal,fs_err])
+    nbins = 400
+    bins2,folded_signal2,fs_err2 = phase_fold(signal2,times,peak_freq2,nbins,name,out_dir,'T2',plot=True)
+    bins3,folded_signal3,fs_err3 = phase_fold(signal3,times,peak_freq3,nbins,name,out_dir,'T3',plot=True)
+    bins4,folded_signal4,fs_err4 = phase_fold(signal4,times,peak_freq4,nbins,name,out_dir,'T4',plot=True)
+
+    np.savetxt(out_dir + '/phase_fold.txt',np.c_[bins2,folded_signal2,fs_err2,folded_signal3,fs_err3,folded_signal4,fs_err4])
 
 log.close()

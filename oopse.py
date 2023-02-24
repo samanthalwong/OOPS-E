@@ -71,6 +71,8 @@ def read_files(dir,date,sample,nruns=1,runnum=1,tels=3):
     """
     :param date: Run date
     :param sample: Sample rate for T2/T3/T4 - T1 is 1200 by default
+    :param nruns: Number of runs taken on this date
+    :param runnum: Run number (usually 1 or 2)
     :param tels: # of telescopes used (3 by default since T1 usually saturates)
     :return: time,signals arrays of time and signal values for each telescope (single time array for T2/T3/T4)
     """
@@ -128,7 +130,7 @@ def calc_sig(signal,time,ephemeris):
     peak_freq = frequency[np.where(power == peak)[0][0]]
     return sigma, peak, peak_freq, noise
 
-def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,plot=True):
+def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,plot=True):
     """
     :param s2: T2 signal (array)
     :param s3: T3 signal (array)
@@ -138,6 +140,7 @@ def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,plot=True):
     :param tmin: Run start time (from parameter file) (float)
     :param name: Pulsar name (string)
     :param dir: Which directory to save plot to (string)
+    :param ephemeris: Pulsar ephemeris
     :param plot: If true, saves cumulative significance plot (boolean)
     :return: times,sigs arrays of times and significances at each time interval
     """

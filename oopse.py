@@ -111,11 +111,14 @@ def read_files(dir,date,sample,nruns=1,runnum=1,tels=3):
 
     return time,signals
 
-def calc_sig(signal,time,ephemeris):
+def calc_sig(signal,time,ephemeris,tel,dir,plot=True):
     """
     :param signal: Array of signal values to L-S
     :param time: Array of time values
     :param ephemeris: Pulsar ephemeris at time of observation (using get_ephemeris is recommended)
+    :param tel: Telescope number
+    :param plot: Returns L-S periodogram plot
+    :param dir: Where to save plot
     :return: sigma (float): significance of S/N
              peak (float): peak L-S power
              peak_freq (float): frequency of peak (used for calculating drift b/w tels)
@@ -128,6 +131,16 @@ def calc_sig(signal,time,ephemeris):
                 (frequency > ephemeris - 0.6) & (frequency < ephemeris - 0.1))]
     sigma = peak/np.std(noise)
     peak_freq = frequency[np.where(power == peak)[0][0]]
+    if plot:
+        plt.clf()
+        plt.plot(frequency,power,'darkslateblue')
+        plt.grid()
+        plt.axvline(ephemeris,ls='--',color='k')
+        plt.xlabel('Frequency [Hz]')
+        plt.ylabel('Power')
+        plt.title(f'T{tel} Lomb-Scargle Periodogram')
+        plt.savefig(dir+'/T'+tel+'_LS.png')
+
     return sigma, peak, peak_freq, noise
 
 def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,plot=True):

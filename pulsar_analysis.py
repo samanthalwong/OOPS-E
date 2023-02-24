@@ -139,7 +139,7 @@ if cumulative: #calculates + plots cumulative significance
     np.savetxt(out_dir + '/' + name+'_csig_data.txt',np.c_[csig_times,csig_sigs])
 
 if phasogram: #plots phasogram
-    nbins = 400
+    nbins = 100
     bins2,folded_signal2,fs_err2 = oopse.phase_fold(signal2,times,peak_freq2,nbins,name,out_dir,'T2',plot=True)
     bins3,folded_signal3,fs_err3 = oopse.phase_fold(signal3,times,peak_freq3,nbins,name,out_dir,'T3',plot=True)
     bins4,folded_signal4,fs_err4 = oopse.phase_fold(signal4,times,peak_freq4,nbins,name,out_dir,'T4',plot=True)

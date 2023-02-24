@@ -139,7 +139,7 @@ def calc_sig(signal,time,ephemeris,tel,dir,plot=True):
         plt.xlabel('Frequency [Hz]')
         plt.ylabel('Power')
         plt.title(f'T{tel} Lomb-Scargle Periodogram')
-        plt.savefig(dir+'/T'+tel+'_LS.png')
+        plt.savefig(str(dir)+'/T'+str(tel)+'_LS.png')
 
     return sigma, peak, peak_freq, noise
 

@@ -66,7 +66,7 @@ def get_ephemeris(date, time):
 
     return ephemeris
 
-def read_files(dir,date,sample,nruns=1,tels=3):
+def read_files(dir,date,sample,nruns=1,runnum=1,tels=3):
 
     """
     :param date: Run date
@@ -78,9 +78,9 @@ def read_files(dir,date,sample,nruns=1,tels=3):
     date = str(date)
 
     if nruns > 1:
-        t2 = dir + "/" + date + "-Crab" + "_" + str(nruns) + "-T2.csv"
-        t3 = dir + "/" + date + "-Crab" + "_" + str(nruns) + "-T3.csv"
-        t4 = dir + "/" + date + "-Crab" + "_" + str(nruns) + "-T4.csv"
+        t2 = dir + "/" + date + "-Crab_" + str(runnum) + "-T2.csv"
+        t3 = dir + "/" + date + "-Crab_" + str(runnum) + "-T3.csv"
+        t4 = dir + "/" + date + "-Crab_" + str(runnum) + "-T4.csv"
     else:
         t2 = dir + "/" + date + "-Crab-T2.csv"
         t3 = dir + "/" + date + "-Crab-T3.csv"

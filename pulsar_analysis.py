@@ -35,6 +35,7 @@ dur = params['duration'] #run duration - unused but could be used to improve eph
 sample = params['sample'] #sample rate (usually 2400 unless specified otherwise)
 ntel = params['ntel'] #number of telescopes to use (usually 3)
 nruns = int(params['nruns']) #run number if > 1 run taken on the same date
+runnum = params['runnum']
 
 #create out directory if it doesn't exist
 if not os.path.isdir(out_dir):
@@ -56,7 +57,7 @@ log.write(f'------------------------------\n')
 log.write('\n')
 
 #Read files - extract signals and make time arrays
-times, signals = oopse.read_files(data_dir,date,sample,nruns,ntel)
+times, signals = oopse.read_files(data_dir,date,sample,nruns,runnum,ntel)
 times = np.array(times)
 
 #Apply time cuts

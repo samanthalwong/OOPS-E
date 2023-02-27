@@ -9,6 +9,27 @@ import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 from tqdm import tqdm
 import os
+
+def plot_raw(signal,time,dir,date,runnum,tel):
+    """
+    :param signal: raw signal data
+    :param time: time array
+    :param dir: output directory
+    :param date: run date
+    :param runnum: run number if # runs taken on [date] > 1
+    :param tel: Telescope #
+    """
+    plt.clf()
+    plt.plot(time, signal, 'k.')
+    plt.xlabel('Time')
+    plt.ylabel('Voltage [V]')
+    plt.title(f'T{tel} Data')
+    if runnum >= 1:
+        plt.savefig(dir+'/'+str(date)+'_'+str(runnum)+'T'+str(tel)+'_rawdata.png',format='png')
+    else:
+        plt.savefig(dir + '/' + str(date) + str(tel)+'_rawdata.png', format='png')
+    return
+
 def get_ephemeris(date, time):
 
     """
@@ -135,10 +156,11 @@ def calc_sig(signal,time,ephemeris,tel,dir,plot=True):
         plt.clf()
         plt.plot(frequency,power,'darkslateblue')
         plt.grid()
-        plt.axvline(ephemeris,ls='--',color='k')
+        plt.axvline(ephemeris,ls='--',color='k',alpha=0.3,label='Ephemeris')
         plt.xlabel('Frequency [Hz]')
         plt.ylabel('Power')
         plt.title(f'T{tel} Lomb-Scargle Periodogram')
+        plt.legend()
         plt.savefig(str(dir)+'/T'+str(tel)+'_LS.png')
 
     return sigma, peak, peak_freq, noise
@@ -186,6 +208,7 @@ def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,plot=True):
                 (frequency3 > ephemeris - 0.6) & (frequency3 < ephemeris - 0.1))]
         noise4 = power4[((frequency4 < ephemeris + 0.6) & (frequency4 > ephemeris + 0.1)) | (
                 (frequency4 > ephemeris - 0.6) & (frequency4 < ephemeris - 0.1))]
+
 
         noise = noise2 + noise3 + noise4
         sig = (peak2 + peak3 + peak4)/np.std(noise)
@@ -249,7 +272,7 @@ def phase_fold(signal,time,p,nbins,name,dir,tel,plot=True):
     :return: bins, signal, error
     """
 
-    def phase_bin(signal, phases, bins):
+    def phase_bin(signal, phases,bins):
         counts_bin = np.zeros(len(bins))
         std_bin = np.zeros(len(bins))
         sum_bin = np.zeros(len(bins))

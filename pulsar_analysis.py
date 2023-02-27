@@ -99,6 +99,11 @@ if ntel == 4:
     mean1 = np.mean(signal1)
     signal1 = signal1 - mean1
 
+#plot data
+oopse.plot_raw(signal2,times,out_dir,date,runnum,2)
+oopse.plot_raw(signal3,times,out_dir,date,runnum,3)
+oopse.plot_raw(signal4,times,out_dir,date,runnum,4)
+
 #significance calculations
 print('Calculating Significance')
 

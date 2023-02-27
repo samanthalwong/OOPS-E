@@ -170,6 +170,7 @@ def calc_sig(signal,time,ephemeris,tel,dir,runnum,plot=True):
     return sigma, peak, peak_freq, noise
 
 def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,runnum,plot=True):
+    from scipy.optimize import curve_fit
     """
     :param s2: T2 signal (array)
     :param s3: T3 signal (array)
@@ -221,7 +222,6 @@ def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,runnum,plot=True):
         times = np.append(times,t-tmin)
 
     if plot:
-        from scipy.optimize import curve_fit
         def linear_fit(x, a, b):
             return a * x + b
 
@@ -310,6 +310,6 @@ def phase_fold(signal,time,p,nbins,name,dir,tel,runnum,plot=True):
         if runnum == 0:
             plt.savefig(dir+'/phasogram_T'+tel + '.png',format='png')
         else:
-            plt.savefig(dir + '/' + 'phasogram_' + str(runnum) + '_T' + str(tel) + '.png', format='png')
+            plt.savefig(dir + '/' + 'phasogram' + str(runnum) + '_T' + str(tel) + '.png', format='png')
 
     return bins[:-1], sig[:-1], err

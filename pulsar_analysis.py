@@ -111,11 +111,11 @@ ephemeris = oopse.get_ephemeris(str(date),str(run_time))
 print(f'Ephemeris on {date} at {run_time} is {ephemeris}')
 
 print('Lomb-Scargling T2')
-sig2,peak2,peak_freq2,noise2 = oopse.calc_sig(signal2,times,ephemeris,2,out_dir,plot=True)
+sig2,peak2,peak_freq2,noise2 = oopse.calc_sig(signal2,times,ephemeris,2,out_dir,runnum,plot=True)
 print('Lomb-Scargling T3')
-sig3,peak3,peak_freq3,noise3 = oopse.calc_sig(signal3,times,ephemeris,3,out_dir,plot=True)
+sig3,peak3,peak_freq3,noise3 = oopse.calc_sig(signal3,times,ephemeris,3,out_dir,runnum,plot=True)
 print('Lomb-Scargling T4')
-sig4,peak4,peak_freq4,noise4 = oopse.calc_sig(signal4,times,ephemeris,4,out_dir,plot=True)
+sig4,peak4,peak_freq4,noise4 = oopse.calc_sig(signal4,times,ephemeris,4,out_dir,runnum,plot=True)
 
 print(f'T2 Significance: {sig2} sigma')
 print(f'T3 Significance: {sig3} sigma')
@@ -146,13 +146,13 @@ log.write(f'T3 peak @ {peak_freq3} Hz\n')
 log.write(f'T4 peak @ {peak_freq4} Hz\n')
 
 if cumulative: #calculates + plots cumulative significance
-    csig_times, csig_sigs = oopse.cumulative_sig(signal2,signal3,signal4,times,10,start,name,out_dir,ephemeris,plot=True)
+    csig_times, csig_sigs = oopse.cumulative_sig(signal2,signal3,signal4,times,10,start,name,out_dir,ephemeris,runnum,plot=True)
     np.savetxt(out_dir + '/' + name+'_csig_data.txt',np.c_[csig_times,csig_sigs])
 
 if phasogram: #plots phasogram
-    bins2,folded_signal2,fs_err2 = oopse.phase_fold(signal2,times,peak_freq2,nbins,name,out_dir,'T2',plot=True)
-    bins3,folded_signal3,fs_err3 = oopse.phase_fold(signal3,times,peak_freq3,nbins,name,out_dir,'T3',plot=True)
-    bins4,folded_signal4,fs_err4 = oopse.phase_fold(signal4,times,peak_freq4,nbins,name,out_dir,'T4',plot=True)
+    bins2,folded_signal2,fs_err2 = oopse.phase_fold(signal2,times,peak_freq2,nbins,name,out_dir,'T2',runnum,plot=True)
+    bins3,folded_signal3,fs_err3 = oopse.phase_fold(signal3,times,peak_freq3,nbins,name,out_dir,'T3',runnum,plot=True)
+    bins4,folded_signal4,fs_err4 = oopse.phase_fold(signal4,times,peak_freq4,nbins,name,out_dir,'T4',runnum,plot=True)
 
     np.savetxt(out_dir + '/phase_fold.txt',np.c_[bins2,folded_signal2,fs_err2,folded_signal3,fs_err3,folded_signal4,fs_err4])
 

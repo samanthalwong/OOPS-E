@@ -25,7 +25,7 @@ def plot_raw(signal,time,dir,date,runnum,tel):
     plt.ylabel('Voltage [V]')
     plt.title(f'T{tel} Data')
     if runnum >= 1:
-        plt.savefig(dir+'/'+str(date)+'_'+str(runnum)+'T'+str(tel)+'_rawdata.png',format='png')
+        plt.savefig(dir+'/'+str(date)+'_'+str(runnum)+'_T'+str(tel)+'_rawdata.png',format='png')
     else:
         plt.savefig(dir + '/' + str(date) + str(tel)+'_rawdata.png', format='png')
     return
@@ -132,7 +132,7 @@ def read_files(dir,date,sample,nruns=1,runnum=1,tels=3):
 
     return time,signals
 
-def calc_sig(signal,time,ephemeris,tel,dir,plot=True):
+def calc_sig(signal,time,ephemeris,tel,dir,runnum,plot=True):
     """
     :param signal: Array of signal values to L-S
     :param time: Array of time values
@@ -140,6 +140,7 @@ def calc_sig(signal,time,ephemeris,tel,dir,plot=True):
     :param tel: Telescope number
     :param plot: Returns L-S periodogram plot
     :param dir: Where to save plot
+    :param runnum: Run number if > 1 run on [date]
     :return: sigma (float): significance of S/N
              peak (float): peak L-S power
              peak_freq (float): frequency of peak (used for calculating drift b/w tels)
@@ -161,11 +162,14 @@ def calc_sig(signal,time,ephemeris,tel,dir,plot=True):
         plt.ylabel('Power')
         plt.title(f'T{tel} Lomb-Scargle Periodogram')
         plt.legend()
-        plt.savefig(str(dir)+'/T'+str(tel)+'_LS.png')
+        if runnum == 0:
+            plt.savefig(str(dir) + '/T' + str(tel) + '_LS.png')
+        else:
+            plt.savefig(str(dir)+'/T'+str(runnum)+str(tel)+'_LS.png')
 
     return sigma, peak, peak_freq, noise
 
-def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,plot=True):
+def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,runnum,plot=True):
     """
     :param s2: T2 signal (array)
     :param s3: T3 signal (array)
@@ -177,6 +181,7 @@ def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,plot=True):
     :param dir: Which directory to save plot to (string)
     :param ephemeris: Pulsar ephemeris
     :param plot: If true, saves cumulative significance plot (boolean)
+    :param runnum: Run number if > 1 runs taken on [date]
     :return: times,sigs arrays of times and significances at each time interval
     """
 
@@ -233,8 +238,10 @@ def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,plot=True):
         plt.title(f'{name} 3-Tel Cumulative Significance')
         plt.grid(which='major')
         plt.grid(which='minor')
-        plt.savefig(dir+'/csig.png',format='png')
-
+        if runnum == 0:
+            plt.savefig(dir+'/csig.png',format='png')
+        else:
+            plt.savefig(dir + '/' + str(runnum) + '_csig.png', format='png')
     return times, significance
 
 def tukey_window(n,alpha=1/50):
@@ -259,7 +266,7 @@ def whiten(signal,ephemeris,sample):
     white = smooth_fft / np.sqrt(ps) * norm
     return np.fft.irfft(white)
 
-def phase_fold(signal,time,p,nbins,name,dir,tel,plot=True):
+def phase_fold(signal,time,p,nbins,name,dir,tel,runnum,plot=True):
     """
     :param signal: Pulsar signal array (can be pre-whitened)
     :param time: Time array
@@ -269,6 +276,8 @@ def phase_fold(signal,time,p,nbins,name,dir,tel,plot=True):
     :param name: Pulsar name
     :param dir: Directory to save plot to
     :param tel: Telescope name
+    :param runnum: Run number if > 1 runs taken on [date]
+    :param plot: Plot data
     :return: bins, signal, error
     """
 
@@ -298,6 +307,9 @@ def phase_fold(signal,time,p,nbins,name,dir,tel,plot=True):
         plt.ylabel('Voltage [V]')
         plt.xlabel('Phase')
         plt.grid()
-        plt.savefig(dir+'/' + tel + '_' + 'phasogram.png',format='png')
+        if runnum == 0:
+            plt.savefig(dir+'/' + tel + '_' + 'phasogram.png',format='png')
+        else:
+            plt.savefig(dir + '/' + str(runnum) + '_' + str(tel) + '_' + 'phasogram.png', format='png')
 
     return bins[:-1], sig[:-1], err

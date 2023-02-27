@@ -130,6 +130,9 @@ tot_noise = noise2 + noise3 + noise4
 std_tot = np.std(tot_noise)
 sig_tot = (peak2 + peak3 + peak4)/std_tot
 
+#write noise and peak values to .txt file for combined run analysis
+np.savetxt(out_dir + '/' + name+'_peaknoise.txt',np.c_[peak2,peak3,peak4,noise2,noise3,noise4])
+
 print(f'3-Tel Stacked Significance: {sig_tot} sigma')
 log.write(f'3-Tel Stacked Significance: {sig_tot} sigma\n')
 log.write('\n')

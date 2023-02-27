@@ -32,7 +32,7 @@ name = str(params['name']) #pulsar name
 date = params['date'] #run date
 run_time = params['time'] #run start time
 dur = params['duration'] #run duration - unused but could be used to improve ephemeris
-sample = float(params['sample']) #sample rate (usually 2400 unless specified otherwise)
+sample = params['sample'] #sample rate (usually 2400 unless specified otherwise)
 ntel = params['ntel'] #number of telescopes to use (usually 3)
 nruns = int(params['nruns']) #number of runs taken on [date]
 runnum = params['runnum'] #run number if > 1 runs taken on [date]
@@ -58,7 +58,7 @@ log.write(f'------------------------------\n')
 log.write('\n')
 
 #Read files - extract signals and make time arrays
-times, signals = oopse.read_files(data_dir,date,sample,nruns,runnum,ntel)
+times, signals = oopse.read_files(data_dir,date,float(sample),nruns,runnum,ntel)
 times = np.array(times)
 
 #Apply time cuts
@@ -131,7 +131,9 @@ std_tot = np.std(tot_noise)
 sig_tot = (peak2 + peak3 + peak4)/std_tot
 
 #write noise and peak values to .txt file for combined run analysis
-np.savetxt(out_dir + '/' + name+'_peaknoise.txt',np.c_[peak2,peak3,peak4,noise2,noise3,noise4])
+peaks = np.array([peak2,peak3,peak4])
+peaks = str(peaks)
+np.savetxt(out_dir + '/' + str(date) +'_peaknoise.txt',np.c_[noise2,noise3,noise4],header=peaks)
 
 print(f'3-Tel Stacked Significance: {sig_tot} sigma')
 log.write(f'3-Tel Stacked Significance: {sig_tot} sigma\n')

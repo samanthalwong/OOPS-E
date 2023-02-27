@@ -165,7 +165,7 @@ def calc_sig(signal,time,ephemeris,tel,dir,runnum,plot=True):
         if runnum == 0:
             plt.savefig(str(dir) + '/T' + str(tel) + '_LS.png')
         else:
-            plt.savefig(str(dir)+'/T'+str(runnum)+str(tel)+'_LS.png')
+            plt.savefig(str(dir)+'/T'+str(tel)+'_LS_'+str(runnum)+'.png')
 
     return sigma, peak, peak_freq, noise
 
@@ -241,7 +241,7 @@ def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,runnum,plot=True):
         if runnum == 0:
             plt.savefig(dir+'/csig.png',format='png')
         else:
-            plt.savefig(dir + '/' + str(runnum) + '_csig.png', format='png')
+            plt.savefig(dir + '/'  + 'csig_' + str(runnum) + '.png', format='png')
     return times, significance
 
 def tukey_window(n,alpha=1/50):
@@ -308,8 +308,8 @@ def phase_fold(signal,time,p,nbins,name,dir,tel,runnum,plot=True):
         plt.xlabel('Phase')
         plt.grid()
         if runnum == 0:
-            plt.savefig(dir+'/' + tel + '_' + 'phasogram.png',format='png')
+            plt.savefig(dir+'/phasogram_T'+tel + '.png',format='png')
         else:
-            plt.savefig(dir + '/' + str(runnum) + '_' + str(tel) + '_' + 'phasogram.png', format='png')
+            plt.savefig(dir + '/' + 'phasogram_' + str(runnum) + '_T' + str(tel) + '.png', format='png')
 
     return bins[:-1], sig[:-1], err

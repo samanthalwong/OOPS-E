@@ -1,6 +1,8 @@
 name: Crab
 date: 20230216
 nruns: 1
+runnum: 1
+nbins: 400
 time: 04:26:00
 duration: 30
 sample: 4800

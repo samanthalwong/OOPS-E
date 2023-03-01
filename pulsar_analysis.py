@@ -150,8 +150,10 @@ log.write(f'T4 peak @ {peak_freq4} Hz\n')
 
 if cumulative: #calculates + plots cumulative significance
     csig_times, csig_sigs = oopse.cumulative_sig(signal2,signal3,signal4,times,25,start,name,out_dir,ephemeris,runnum,plot=True)
-    np.savetxt(out_dir + '/' + name+'_csig_data.txt',np.c_[csig_times,csig_sigs])
-
+    if nruns > 1:
+        np.savetxt(out_dir + '/' + name+ '_' + str(runnum) + '_csig_data.txt',np.c_[csig_times,csig_sigs])
+    else:
+        np.savetxt(out_dir + '/' + name + '_csig_data.txt', np.c_[csig_times, csig_sigs])
 if phasogram: #plots phasogram
     bins2,folded_signal2,fs_err2 = oopse.phase_fold(signal2,times,peak_freq2,nbins,name,out_dir,'T2',runnum,plot=True)
     bins3,folded_signal3,fs_err3 = oopse.phase_fold(signal3,times,peak_freq3,nbins,name,out_dir,'T3',runnum,plot=True)

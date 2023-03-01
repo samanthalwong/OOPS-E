@@ -136,7 +136,10 @@ sig_tot = (peak2 + peak3 + peak4)/std_tot
 #write noise and peak values to .txt file for combined run analysis
 peaks = np.array([peak2,peak3,peak4])
 peaks = str(peaks)
-np.savetxt(out_dir + '/' + str(date) +'_peaknoise.txt',np.c_[noise2,noise3,noise4],header=peaks)
+if nruns > 1:
+    np.savetxt(out_dir + '/' + str(date) + '_' + str(runnum) + '_peaknoise.txt', np.c_[noise2, noise3, noise4], header=peaks)
+else:
+    np.savetxt(out_dir + '/' + str(date) +'_peaknoise.txt',np.c_[noise2,noise3,noise4],header=peaks)
 
 print(f'3-Tel Stacked Significance: {sig_tot} sigma')
 log.write(f'3-Tel Stacked Significance: {sig_tot} sigma\n')

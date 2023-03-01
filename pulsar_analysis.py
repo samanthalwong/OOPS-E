@@ -43,7 +43,10 @@ if not os.path.isdir(out_dir):
     os.makedirs(out_dir)
 
 #log file
-logfile = out_dir + '/' + name + '_' + str(date) + '_' + str(sample) + '_log.txt'
+if nruns > 0:
+    logfile = out_dir + '/' + name + '_' + str(date) + '_' + str(runnum) + '_log.txt'
+else:
+    logfile = out_dir + '/' + name + '_' + str(date) + '_log.txt'
 log = open(logfile,"w")
 
 log.write('OOPS-E Pulsar Analysis Script\n')

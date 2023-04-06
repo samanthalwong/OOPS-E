@@ -361,3 +361,13 @@ def phase_fold(signal,time,p,nbins,name,dir,tel,runnum,plot=True):
 
     return bins[:-1], sig[:-1], err
 
+def combine_sigs(sigmas):
+    """
+    :param sigmas: Array of significance values
+    :return: Significance of combined sigmas
+    """
+    sum = 0
+    for i in sigmas:
+        sum  = sum + i**2
+    return np.sqrt(sum)
+

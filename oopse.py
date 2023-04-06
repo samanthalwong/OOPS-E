@@ -132,7 +132,7 @@ def read_files(dir,date,sample,nruns=1,runnum=1,tels=3):
 
     return time,signals
 
-def calc_sig(signal,time,ephemeris,tel,dir,runnum,plot=True):
+def calc_sig(signal,time,ephemeris,tel,dir,runnum,harmonics=1,plot=True):
     """
     :param signal: Array of signal values to L-S
     :param time: Array of time values
@@ -146,28 +146,75 @@ def calc_sig(signal,time,ephemeris,tel,dir,runnum,plot=True):
              peak_freq (float): frequency of peak (used for calculating drift b/w tels)
              noise (array): array of noise values (for use in stacked significance)
     """
-    frequency, power = LombScargle(time, signal, 1000).autopower(minimum_frequency=25, maximum_frequency=35,
-                                                                     samples_per_peak=10)
-    peak = max(power)
-    noise = power[((frequency < ephemeris + 0.6) & (frequency > ephemeris + 0.1)) | (
-                (frequency > ephemeris - 0.6) & (frequency < ephemeris - 0.1))]
-    sigma = peak/np.std(noise)
-    peak_freq = frequency[np.where(power == peak)[0][0]]
-    if plot:
-        plt.clf()
-        plt.plot(frequency,power,'darkslateblue')
-        plt.grid()
-        plt.axvline(ephemeris,ls='--',color='k',alpha=0.3,label='Ephemeris')
-        plt.xlabel('Frequency [Hz]')
-        plt.ylabel('Power')
-        plt.title(f'T{tel} Lomb-Scargle Periodogram')
-        plt.legend()
-        if runnum == 0:
-            plt.savefig(str(dir) + '/T' + str(tel) + '_LS.png')
-        else:
-            plt.savefig(str(dir)+'/T'+str(tel)+'_LS_'+str(runnum)+'.png')
 
-    return sigma, peak, peak_freq, noise
+    if harmonics == 1:
+        frequency, power = LombScargle(time, signal, 1000).autopower(minimum_frequency=ephemeris-1, maximum_frequency=ephemeris+1,
+                                                                         samples_per_peak=10)
+
+        df = frequency[1] - frequency[0]
+
+        peak = power.max()
+        peak_freq = frequency[np.where(power == peak)[0][0]]
+
+        noise = power[((frequency < peak_freq + 10000*df) & (frequency > peak_freq + 5000*df)) | ((frequency > peak_freq - 10000*df) & (frequency < peak_freq - 5000*df))]
+        sigma = peak/np.std(noise)
+
+        if plot:
+            plt.clf()
+            plt.plot(frequency,power,'darkslateblue')
+            plt.grid()
+            plt.axvline(ephemeris,ls='--',color='k',alpha=0.3,label='Ephemeris')
+            plt.xlabel('Frequency [Hz]')
+            plt.ylabel('Power')
+            plt.title(f'T{tel} Lomb-Scargle Periodogram')
+            plt.legend()
+            if runnum == 0:
+                plt.savefig(str(dir) + '/T' + str(tel) + '_LS.png')
+            else:
+                plt.savefig(str(dir)+'/T'+str(tel)+'_LS_'+str(runnum)+'.png')
+
+        return sigma, peak, peak_freq, noise
+    else:
+        sigmas = np.array(())
+        peaks = np.array(())
+        peak_freqs = np.array(())
+        noises = []
+        for h in range(harmonics):
+            p = ephemeris * h
+            frequency, power = LombScargle(time, signal, 1000).autopower(minimum_frequency=p - 1,
+                                                                         maximum_frequency=p + 1,
+                                                                         samples_per_peak=10)
+
+            df = frequency[1] - frequency[0]
+
+            peak = power.max()
+            peaks = np.append(peaks,peak)
+            peak_freq = frequency[np.where(power == peak)[0][0]]
+            peak_freqs = np.append(peak_freqs,peak_freq)
+
+            noise = power[((frequency < peak_freq + 10000 * df) & (frequency > peak_freq + 5000 * df)) | (
+                        (frequency > peak_freq - 10000 * df) & (frequency < peak_freq - 5000 * df))]
+
+            noises = noises.append(noise)
+            sigma = peak / np.std(noise)
+
+            sigmas = np.append(sigmas,sigma)
+
+            if plot:
+                plt.clf()
+                plt.plot(frequency, power, 'darkslateblue')
+                plt.grid()
+                plt.axvline(p, ls='--', color='k', alpha=0.3, label='Ephemeris')
+                plt.xlabel('Frequency [Hz]')
+                plt.ylabel('Power')
+                plt.title(f'T{tel} Lomb-Scargle Periodogram (Harmonic {h})')
+                plt.legend()
+                if runnum == 0:
+                    plt.savefig(str(dir) + '/T' + str(tel) + 'h' + str(h) + '_LS.png')
+                else:
+                    plt.savefig(str(dir) + '/T' + str(tel) + 'h' + str(h) + '_LS_' + str(runnum) + '.png')
+
+            return sigmas, peaks, peak_freqs, noises
 
 def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,runnum,plot=True):
     from scipy.optimize import curve_fit
@@ -313,3 +360,4 @@ def phase_fold(signal,time,p,nbins,name,dir,tel,runnum,plot=True):
             plt.savefig(dir + '/' + 'phasogram' + str(runnum) + '_T' + str(tel) + '.png', format='png')
 
     return bins[:-1], sig[:-1], err
+

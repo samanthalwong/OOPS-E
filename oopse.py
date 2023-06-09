@@ -1,16 +1,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
-import matplotlib
 from astropy.timeseries import LombScargle
-import yaml
-import sys
-from datetime import datetime
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
-from tqdm import tqdm
-import os
+import scipy.stats as st
 
-def plot_raw(signal,time,dir,date,runnum,tel):
+
+def plot_raw(signal, time, dir, date, runnum, tel):
     """
     :param signal: raw signal data
     :param time: time array
@@ -25,349 +19,165 @@ def plot_raw(signal,time,dir,date,runnum,tel):
     plt.ylabel('Voltage [V]')
     plt.title(f'T{tel} Data')
     if runnum >= 1:
-        plt.savefig(dir+'/'+str(date)+'_'+str(runnum)+'_T'+str(tel)+'_rawdata.png',format='png')
+        plt.savefig(dir + '/' + str(date) + '_' + str(runnum) + '_T' + str(tel) + '_rawdata.png', format='png')
     else:
-        plt.savefig(dir + '/' + str(date) + str(tel)+'_rawdata.png', format='png')
+        plt.savefig(dir + '/' + str(date) + str(tel) + '_rawdata.png', format='png')
     return
 
-def get_ephemeris(date, time):
 
+def read_file(filename, sample=2400):
     """
-    :param date: Run date
-    :param time: Run time
-    :return: Estimated ephemeris interpolated from Jodrell Bank values
-    """
-    from astropy.time import Time, TimeDelta
-    from astropy.timeseries import TimeSeries
-    import urllib.request
-    import urllib
-    from urllib.request import urlopen
-
-    #convert date + time to mjd
-    datetime = date[:4] + '-' + date[4:6] + '-' + date[6:] + 'T' + time
-    datetime = Time(datetime,format='isot',scale='utc')
-    datetime = datetime.mjd
-
-    mjd = np.array(())
-    p = np.array(())
-    p_dot = np.array(())
-    for line in urllib.request.urlopen("https://www.jb.man.ac.uk/pulsar/crab/all.gro"):
-        line = line.decode('utf-8').split(' ')
-        if line == ['\n']:
-            continue
-        mjd = np.append(mjd, line[9])
-        p = np.append(p, line[13])
-        p_dot = np.append(p_dot, line[14])
-
-    mjd = mjd.astype(float)
-    p = p.astype(float)
-    p_dot = np.char.split(p_dot, 'D')
-    p_dot = p_dot.tolist()
-    p_dot = np.array(p_dot)
-    pdot = p_dot[:, 0].astype(float) * 1e-10
-
-    if date == 0:
-        return p[-1]
-
-    else:
-        if datetime >= mjd[-1]:
-            nearest = mjd[-1]
-            nearest = Time(nearest,format='mjd')
-            idx = -1
-        else:
-            nearest = mjd[np.where(mjd < datetime)[0][-1]]
-            idx = np.where(mjd < datetime)[0][-1]
-
-    nearest = Time(nearest, format='mjd')
-    datetime = Time(datetime,format='mjd')
-
-    diff = (datetime - nearest).sec
-
-    ephemeris = float(p[idx]) + (diff) * float(pdot[idx])
-
-    return ephemeris
-
-def read_files(dir,date,sample,nruns=1,runnum=1,tels=3):
-
-    """
-    :param date: Run date
-    :param sample: Sample rate for T2/T3/T4 - T1 is 1200 by default
-    :param nruns: Number of runs taken on this date
-    :param runnum: Run number (usually 1 or 2)
-    :param tels: # of telescopes used (3 by default since T1 usually saturates)
+    :param filename: .csv file to read
+    :param sample: sample rate (default = 2400 Hz)
     :return: time,signals arrays of time and signal values for each telescope (single time array for T2/T3/T4)
     """
-    dir = str(dir)
-    date = str(date)
 
-    if nruns > 1:
-        t2 = dir + "/" + date + "-Crab_" + str(runnum) + "-T2.csv"
-        t3 = dir + "/" + date + "-Crab_" + str(runnum) + "-T3.csv"
-        t4 = dir + "/" + date + "-Crab_" + str(runnum) + "-T4.csv"
-    else:
-        t2 = dir + "/" + date + "-Crab-T2.csv"
-        t3 = dir + "/" + date + "-Crab-T3.csv"
-        t4 = dir + "/" + date + "-Crab-T4.csv"
+    signal = np.genfromtxt(filename, delimiter=',', unpack=True, usecols=(1), skip_header=3)
 
-    print('Reading T2')
-    time2, signal2 = np.genfromtxt(t2, delimiter=',', unpack=True, usecols=(0, 1), skip_header=3)
-    print('Reading T3')
-    time3, signal3 = np.genfromtxt(t3, delimiter=',', unpack=True, usecols=(0, 1), skip_header=3)
-    print('Reading T4')
-    time4, signal4 = np.genfromtxt(t4, delimiter=',', unpack=True, usecols=(0, 1), skip_header=3)
+    time = 1. / sample * np.arange(0, len(signal))
 
-    time =  1./sample * np.arange(0,len(signal2))
+    return time, signal
 
-    if tels == 4:
-        print('Reading T1')
-        t1 = "/raid/romulus/swong/ecm/d" + date + "/" + date + "-Crab-T1.csv"
-        time1, signal1 = np.genfromtxt(t1, delimiter=',', unpack=True, usecols=(0, 1), skip_header=3)
-        sample1 = 1200
-        time1 = 1. / sample1 * np.arange(0, len(time2))
-        time = [time1,time]
-        signals = [signal1,signal2, signal3, signal4]
 
-    else:
-        signals = [signal2, signal3, signal4]
+def undigitize(array):
+    return array + np.random.uniform((-1.22e-5) / 2, (1.22e-5) / 2, len(array))
 
-    return time,signals
 
-def calc_sig(signal,time,ephemeris,tel,dir,runnum,harmonics=1,plot=True):
-    """
-    :param signal: Array of signal values to L-S
-    :param time: Array of time values
-    :param ephemeris: Pulsar ephemeris at time of observation (using get_ephemeris is recommended)
-    :param tel: Telescope number
-    :param plot: Returns L-S periodogram plot
-    :param dir: Where to save plot
-    :param runnum: Run number if > 1 run on [date]
-    :return: sigma (float): significance of S/N
-             peak (float): peak L-S power
-             peak_freq (float): frequency of peak (used for calculating drift b/w tels)
-             noise (array): array of noise values (for use in stacked significance)
-    """
+def digitize(array, step=1.22e-5):
+    edges = np.arange(-1, 1, step)
+    arr = np.zeros(len(array))
+    dig_bins = np.digitize(array, edges, right=True)
+    for i, b in enumerate(dig_bins):
+        arr[i] = edges[b - 1]
+    return arr
 
-    if harmonics == 1:
-        frequency, power = LombScargle(time, signal, 1000).autopower(minimum_frequency=ephemeris-1, maximum_frequency=ephemeris+1,
-                                                                         samples_per_peak=10)
 
-        df = frequency[1] - frequency[0]
+def gauss(x, a, b, c, d):
+    return a * np.exp((-(x - b) ** 2) / (2 * c ** 2)) + d
 
-        peak = power.max()
-        peak_freq = frequency[np.where(power == peak)[0][0]]
 
-        noise = power[((frequency < peak_freq + 10000*df) & (frequency > peak_freq + 5000*df)) | ((frequency > peak_freq - 10000*df) & (frequency < peak_freq - 5000*df))]
-        sigma = peak/np.std(noise)
+def exponential(t, amp, tref, trise, tdecay, c):
+    out = np.zeros(len(t))
+    mask = t < tref
+    out[mask] = amp * np.exp((np.abs(t[mask] - tref) / trise)) + c
+    out[~mask] = amp * np.exp((np.abs(t[~mask] - tref) / tdecay)) + c
+    return out
+
+
+def smeared_gaussian(x, a, b, c, d, decay=-(1 / 349) / p):
+    f = gauss(x, a, b, c, d)
+    f = f / np.sum(f)
+    g = exponential(x, a, b, -1e-16, decay, d)
+    g = g / np.sum(g)
+    F = np.fft.rfft(f)
+    G = np.fft.rfft(g)
+    conv = np.fft.irfft(F * G)
+    conv = conv / np.max(conv)
+    conv = conv * a
+    return conv
+
+
+def inject_signal(noise_arr, p, mag, width, time, noise):
+    a = 10 ** ((-0.40355447 * mag) + 2.27458167)
+    sigma = (width / 2.355)
+    m = np.random.uniform(0.2, 0.9)
+    phases = np.abs((time) / p) - np.abs(np.floor((time) / p))
+    fake_signal = smeared_gaussian(phases, a, m, sigma, 0)
+    summed_signal = fake_signal + noise
+    digitized_signal = digitize(summed_signal)
+    return (digitized_signal)
+
+
+from tqdm.auto import tqdm
+
+
+def combine_sig(P):
+    pval = 1
+    for p in P:
+        pval = pval * np.exp(-p)
+    sig = st.norm.ppf(1 - pval, loc=0, scale=1)
+    return sig
+
+
+def calc_sig(time, signal, ephemeris, tel, err=1e-3, plot=True):
+    # err is the error on the ephemeris, which is used to calcuate the on region
+    harmonics = 1
+    ps = np.array(())
+    for h in tqdm(range(harmonics)):
+        p = ephemeris * (h + 1)
+        print(f'Starting harmonic {h}:')
+        # get local average power level & use to whiten
+
+        frequency, power = LombScargle(time, signal).autopower(minimum_frequency=p - 1,
+                                                               maximum_frequency=p + 1,
+                                                               samples_per_peak=10,
+                                                               nyquist_factor=2)
+        on = np.where((frequency >= p - err) & (frequency <= p + err))[0]
+
+        off = \
+            np.where(((frequency < p + 1.1) & (frequency > p + 0.1)) | ((frequency > p - 1.1) & (frequency < p - 0.1)))[
+                0]
+        norm = np.median(power[off]) / np.log(2)
+
+        ln_prob = power[on] / norm
+
+        P = np.max(ln_prob)
+
+        peak_freq = frequency[np.where(power[on] == np.max(power[on]))]
+
+        def sig(x):
+            out = (1.0 / np.sqrt(2.0 * np.pi)) * (np.exp(-(x ** 2.) / 2.))
+            return out
+
+        def f(sigval, p):
+            integ = integrate.quad(sig, sigval, np.inf)
+            return np.abs(integ[0] - p)
+
+        def trials(pcheck, n):
+            return (1 - ((1 - pcheck) ** (1. / n)))
+
+        pcheck = 5.733e-7 / 2  # 5 sigma the division by two is for the two sides
+
+        result = optimize.minimize_scalar(f, args=trials(pcheck, float(len(on))))
+
+        min_sigma = result.x
+
+        print(f'P: {P}')
+        print(f'Threshold significance: {min_sigma}')
 
         if plot:
             plt.clf()
-            plt.plot(frequency,power,'darkslateblue')
-            plt.grid()
-            plt.axvline(ephemeris,ls='--',color='k',alpha=0.3,label='Ephemeris')
-            plt.xlabel('Frequency [Hz]')
-            plt.ylabel('Power')
+            plt.plot(frequency, power)
+            plt.axvline(p, color='k', alpha=0.2, linestyle='--', label='Ephemeris')
+            plt.axvspan(frequency[off][0], frequency[off][int(len(off) / 2) - 1], alpha=0.5, color='r',
+                        label='Noise Region')
+            plt.axvspan(frequency[off][int(len(off) / 2)], frequency[off][-1], alpha=0.5, color='r')
+
             plt.title(f'T{tel} Lomb-Scargle Periodogram')
-            plt.legend()
-            if runnum == 0:
-                plt.savefig(str(dir) + '/T' + str(tel) + '_LS.png')
-            else:
-                plt.savefig(str(dir)+'/T'+str(tel)+'_LS_'+str(runnum)+'.png')
+            plt.savefig()
 
-        return sigma, peak, peak_freq, noise
-    else:
-        sigmas = np.array(())
-        peaks = np.array(())
-        peak_freqs = np.array(())
-        noises = []
-        for h in range(harmonics):
-            p = ephemeris * h
-            frequency, power = LombScargle(time, signal, 1000).autopower(minimum_frequency=p - 1,
-                                                                         maximum_frequency=p + 1,
-                                                                         samples_per_peak=10)
-
-            df = frequency[1] - frequency[0]
-
-            peak = power.max()
-            peaks = np.append(peaks,peak)
-            peak_freq = frequency[np.where(power == peak)[0][0]]
-            peak_freqs = np.append(peak_freqs,peak_freq)
-
-            noise = power[((frequency < peak_freq + 10000 * df) & (frequency > peak_freq + 5000 * df)) | (
-                        (frequency > peak_freq - 10000 * df) & (frequency < peak_freq - 5000 * df))]
-
-            noises = noises.append(noise)
-            sigma = peak / np.std(noise)
-
-            sigmas = np.append(sigmas,sigma)
-
-            if plot:
-                plt.clf()
-                plt.plot(frequency, power, 'darkslateblue')
-                plt.grid()
-                plt.axvline(p, ls='--', color='k', alpha=0.3, label='Ephemeris')
-                plt.xlabel('Frequency [Hz]')
-                plt.ylabel('Power')
-                plt.title(f'T{tel} Lomb-Scargle Periodogram (Harmonic {h})')
-                plt.legend()
-                if runnum == 0:
-                    plt.savefig(str(dir) + '/T' + str(tel) + 'h' + str(h) + '_LS.png')
-                else:
-                    plt.savefig(str(dir) + '/T' + str(tel) + 'h' + str(h) + '_LS_' + str(runnum) + '.png')
-
-            return sigmas, peaks, peak_freqs, noises
-
-def cumulative_sig(s2,s3,s4,time,n,tmin,name,dir,ephemeris,runnum,plot=True):
-    from scipy.optimize import curve_fit
-    """
-    :param s2: T2 signal (array)
-    :param s3: T3 signal (array)
-    :param s4: T4 signal (array)
-    :param time: Time array (float)
-    :param n: Number of points at which significance is calculated
-    :param tmin: Run start time (from parameter file) (float)
-    :param name: Pulsar name (string)
-    :param dir: Which directory to save plot to (string)
-    :param ephemeris: Pulsar ephemeris
-    :param plot: If true, saves cumulative significance plot (boolean)
-    :param runnum: Run number if > 1 runs taken on [date]
-    :return: times,sigs arrays of times and significances at each time interval
-    """
-
-    print(f'Starting Cumulative Significance Calculation - {n} datapoints requested')
-    detect = 0.9999994
-    times = np.array(())
-    significance = np.array(())
-
-    interval = int(len(time)/(n+1))
-    for index,t in tqdm(enumerate(time)):
-        if (index < 100) or (index%interval != 0):
-            continue
-        if index == 0:
-            continue
-
-        frequency2, power2 = LombScargle(time[:index], s2[:index], 1000).autopower(minimum_frequency=25, maximum_frequency=35,
-                                                                     samples_per_peak=10)
-        frequency3, power3 = LombScargle(time[:index], s3[:index], 1000).autopower(minimum_frequency=25, maximum_frequency=35,
-                                                                   samples_per_peak=10)
-        frequency4, power4 = LombScargle(time[:index], s4[:index], 1000).autopower(minimum_frequency=25, maximum_frequency=35,
-                                                                   samples_per_peak=10)
-        peak2 = max(power2)
-        peak3 = max(power3)
-        peak4 = max(power4)
-
-        noise2 = power2[((frequency2 < ephemeris + 0.6) & (frequency2 > ephemeris + 0.1)) | (
-                (frequency2 > ephemeris - 0.6) & (frequency2 < ephemeris - 0.1))]
-        noise3 = power3[((frequency3 < ephemeris + 0.6) & (frequency3 > ephemeris + 0.1)) | (
-                (frequency3 > ephemeris - 0.6) & (frequency3 < ephemeris - 0.1))]
-        noise4 = power4[((frequency4 < ephemeris + 0.6) & (frequency4 > ephemeris + 0.1)) | (
-                (frequency4 > ephemeris - 0.6) & (frequency4 < ephemeris - 0.1))]
+    return P, min_sigma, peak_freq
 
 
-        noise = noise2 + noise3 + noise4
-        sig = (peak2 + peak3 + peak4)/np.std(noise)
-        significance = np.append(significance,sig)
-        times = np.append(times,t-tmin)
+def calc_sigma(pval):
+    sig = st.norm.ppf(1 - pval, loc=0, scale=1)
+    return sig
 
-    if plot:
-        def linear_fit(x, a, b):
-            return a * x + b
 
-        popt, pcov = curve_fit(linear_fit, times, significance)
-        xplot = np.linspace(-5, max(times), times.size)
+def phase_bin(signal,phases,bins):
+    counts_bin = np.zeros(len(bins))
+    std_bin = np.zeros(len(bins))
+    sum_bin = np.zeros(len(bins))
+    for i in range(1, len(bins)):
+        idx = np.where((phases >= bins[i - 1]) & (phases < bins[i]))[0]
+        std_bin[i - 1] = np.std(signal[idx])
+        sum_bin[i - 1] = np.mean(signal[idx])
+        counts_bin[i - 1] = len(signal[idx])
+    return counts_bin, std_bin, sum_bin
 
-        plt.plot(times,significance,'ko')
-        plt.plot(xplot, linear_fit(xplot, *popt), 'g')
-        plt.axhline(5, color='r', ls='--', label=r'5$\sigma$')
-
-        plt.legend()
-        plt.ylabel('Significance [σ]')
-        plt.xlabel('Elapsed Time [s]')
-        plt.title(f'{name} 3-Tel Cumulative Significance')
-        plt.grid(which='major')
-        plt.grid(which='minor')
-        if runnum == 0:
-            plt.savefig(dir+'/csig.png',format='png')
-        else:
-            plt.savefig(dir + '/'  + 'csig_' + str(runnum) + '.png', format='png')
-    return times, significance
-
-def tukey_window(n,alpha=1/50):
-    return sp.signal.tukey(n,alpha=alpha)
-
-def whiten(signal,ephemeris,sample):
-    from scipy.ndimage import gaussian_filter1d
-    fftfreqs = np.fft.rfftfreq(len(signal), d=1/sample)
-    win = tukey_window(len(signal2)) * signal2
-    ft_windowed = np.fft.rfft(signal * win)  # window our strain data
-    ps = np.abs(ft_windowed) ** 2  # take the ps of windowed data
-    buff = 0.1 #buffer around ephemeris that won't be smoothed
-    temp = gaussian_filter1d(ps[:len(ps) // int(len(ps) / np.where(fftfreqs >= ephemeris - buff)[0][0])], 10,
-                             mode='nearest') #left of ephemeris
-    fill = np.append(temp, ps[len(ps) // int(len(ps) / np.where(fftfreqs >= ephemeris - buff)[0][0]):len(ps) // int(
-        len(ps) / np.where(fftfreqs >= ephemeris + buff)[0][0])]) #buffer region
-    temp2 = gaussian_filter1d(ps[len(ps) // int(len(ps) / np.where(fftfreqs >= ephemeris + buff)[0][0]):], 10,
-                              mode='nearest') #right of ephemeris
-    smooth = np.append(fill, temp2)
-    smooth_fft = np.fft.rfft(smooth)
-    norm = 1./np.sqrt(1./(1/sample*2))
-    white = smooth_fft / np.sqrt(ps) * norm
-    return np.fft.irfft(white)
-
-def phase_fold(signal,time,p,nbins,name,dir,tel,runnum,plot=True):
-    """
-    :param signal: Pulsar signal array (can be pre-whitened)
-    :param time: Time array
-    :param ephemeris: Ephemeris to phase fold over (recommended to use get_ephemeris)
-    :param nbins: Number of bins in phasogram
-    :param plot: (boolean) If true, plot results
-    :param name: Pulsar name
-    :param dir: Directory to save plot to
-    :param tel: Telescope name
-    :param runnum: Run number if > 1 runs taken on [date]
-    :param plot: Plot data
-    :return: bins, signal, error
-    """
-
-    def phase_bin(signal, phases,bins):
-        counts_bin = np.zeros(len(bins))
-        std_bin = np.zeros(len(bins))
-        sum_bin = np.zeros(len(bins))
-        for i in range(1, len(bins)):
-            idx = np.where((phases >= bins[i - 1]) & (phases < bins[i]))[0]
-            std_bin[i - 1] = np.std(signal[idx])
-            sum_bin[i - 1] = np.mean(signal[idx])
-            counts_bin[i - 1] = len(signal[idx])
-        return counts_bin, std_bin, sum_bin
-
-    bins = np.linspace(0, 1, nbins)
-    phase = np.abs((time) * p) - np.abs(np.floor((time) * p))
+def phase_fold(time,signal,period,nbins):
+    bins = np.linspace(0,1,nbins)
+    phase = np.abs((time) / period) - np.abs(np.floor((time) / period))
     counts, std, sig = phase_bin(signal, phase, bins)
-    err = std[:-1] / np.sqrt(counts[:-1])
-
-    if plot:
-        peakphase = bins[np.where(sig == np.max(sig))[0][0]]
-        dx = bins[1] - bins[0]
-        shift = int((0.2 - peakphase) / dx)
-        plt.clf()
-        plt.errorbar(bins[:-1], np.roll(sig,shift)[:-1], yerr=err, fmt='.', color='royalblue',alpha=0.5)
-        plt.title(f'{name} Phasogram')
-        plt.ylabel('Voltage [V]')
-        plt.xlabel('Phase')
-        plt.grid()
-        if runnum == 0:
-            plt.savefig(dir+'/phasogram_T'+tel + '.png',format='png')
-        else:
-            plt.savefig(dir + '/' + 'phasogram' + str(runnum) + '_T' + str(tel) + '.png', format='png')
-
-    return bins[:-1], sig[:-1], err
-
-def combine_sigs(sigmas):
-    """
-    :param sigmas: Array of significance values
-    :return: Significance of combined sigmas
-    """
-    sum = 0
-    for i in sigmas:
-        sum  = sum + i**2
-    return np.sqrt(sum)
-
+    err = std/np.sqrt(counts)
+    return bins, sig, err

@@ -1,5 +1,7 @@
 # OOPS-E
 
+OOPS-E is an anlayis and simulations package designed for the VERITAS enhanced current monitor (ECM) optical data. 
+
 ## Installation
 Coming soon! Just git clone and run the `pulsar_analysis.py` script to get started.
 

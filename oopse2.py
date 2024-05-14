@@ -154,7 +154,7 @@ def calc_p(time,signal,ephemeris,tel,spacing,shift=0,samp=2400,plot=True):
             plt.plot(frequency,power,'k')
             plt.axvline(p,color='k',alpha=0.2,linestyle='--',label='Pulse Frequency')
             plt.axvspan(frequency[on][0],frequency[on][-1],alpha=0.5,color='g',label='ON region')
-            plt.fill_between(frequency, 0, max(power), where=mask, color='r', alpha=0.5)
+            plt.fill_between(frequency, 0, max(power), where=mask, color='r', alpha=0.5,label='OFF region')
             plt.ticklabel_format(useOffset=False)
             plt.title(f'T{tel} L-S Periodogram')
             plt.xlabel('Frequency [Hz]')
@@ -164,7 +164,7 @@ def calc_p(time,signal,ephemeris,tel,spacing,shift=0,samp=2400,plot=True):
             #plt.legend()
             plt.show()
 
-    return P, power[on]/norm, power[off]/norm
+    return P
 
 def calc_sigma(pvals):
     p_combined = 0

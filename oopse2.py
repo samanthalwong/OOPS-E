@@ -5,6 +5,8 @@ from scipy import stats
 from datetime import date
 from astropy.time import Time
 from scipy.interpolate import splev, splrep
+from datetime import date
+import pint.models as models
 
 def timecuts(file,data):
     """
@@ -189,3 +191,31 @@ def plot_cum_sig(pvals,chunk_dur):
     plt.xlabel('Time (s)')
     plt.ylabel('Sigma')
     return
+
+def get_p(file,date,diff=False):
+
+    '''
+    Uses PINT to get an up-to-date spin period
+
+    Parameters
+    ----------
+    par: a .par or .eph file with F0, F1, F2, and PEPOCH
+    date: a string formatted as 'yyyy-mm-dd hh:mm:ss' (time is optional)
+
+    Returns
+    -------
+    p: period valid on date
+    diff: difference between original spin period and new spin period
+    '''
+
+    m = models.get_model(file)
+
+    F0_original = m.F0.quantity
+    t = Time(date,scale='utc')
+    date = t.mjd
+
+    m.change_pepoch(date)
+    if diff:
+        return m.F0.quantity.value, (F0_original - m.F0.quantity).value
+    else:
+        return m.F0.quantity.value

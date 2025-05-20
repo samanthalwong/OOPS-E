@@ -7,6 +7,8 @@ from astropy.time import Time
 from scipy.interpolate import splev, splrep
 from datetime import date
 import pint.models as models
+from scipy.stats import combine_pvalues
+from scipy.optimize import curve_fit
 
 def timecuts(file,data):
     """
@@ -30,6 +32,44 @@ def timecuts(file,data):
         tel = tel[(time<start[i]) | (time>stop[i])]
         time = time[(time<start[i]) | (time>stop[i])]
     tel = -(tel - np.mean(tel))
+    return time, tel
+
+def timecuts_from_array(array,data):
+    """
+    Applies timecuts (including pixel suppression) and mean subtracts + flips data. Takes raw ECM
+    timeseries and returns a timeseries ready for processing.
+
+    Parameters
+    ----------
+    array: an array of timecuts with [(start1,stop1),(start2,stop2),...]
+    data: an array or tuple with [time, 1tel data]
+
+    Returns
+    -------
+    time: the time array with time cuts
+    tel: the telescope data array with time cuts, mean subtraction, and flipping
+    """
+    time,tel = data
+   
+    for cut in array:
+        start,stop = cut
+        tel = tel[(time<start) | (time>stop)]
+        time = time[(time<start) | (time>stop)]
+    tel = -(tel - np.mean(tel))
+    return time, tel
+
+def stitch_runs(data,start,stop):
+    time,tel = data
+    tel = np.hstack((tel[(time<start)],tel[(time>stop)]))
+    time = np.hstack((time[(time<start)],time[(time>stop)]))
+    return time,tel
+
+def cut_middle(file,data):
+    time,tel = data
+    start,stop = np.genfromtxt(file,delimiter=' ',unpack=True)
+    for i in range(len(start)):
+        tel = tel[(time<start[i]) | (time>stop[i])]
+        time = time[(time<start[i]) | (time>stop[i])]
     return time, tel
 
 def get_spacing(sampling, length):
@@ -109,18 +149,20 @@ def clean_spl(time,signal,sigma=6,deg=10,plot=True):
     clean = splev(xnew,spl)
     if plot:
         plt.plot(xnew,splev(xnew,spl))
+        plt.show()
     splnew = splrep(xnew,clean)
     clean2 = splev(time,splnew)
-    #plt.plot(time,signal2-clean2)
     resid = signal-clean2
-    thres = np.median(clean2)
+    thres = np.median(resid)
     if plot:
+        plt.plot(time,resid)
         plt.axhline(thres,color='r')
-        plt.axhline(thres+2*np.std(resid),color='k')
-        plt.axhline(thres-2*np.std(resid),color='k')
+        plt.axhline(thres+sigma*np.std(resid),color='k')
+        plt.axhline(thres-sigma*np.std(resid),color='k')
         plt.show()
-    resid[resid > thres+(sigma*np.std(resid))] = thres+(sigma*np.std(resid))
-    resid[resid < thres-(sigma*np.std(resid))] = thres-(sigma*np.std(resid))
+    std = np.std(resid)
+    resid[resid > thres+(sigma*std)] = thres+(sigma*std)
+    resid[resid < thres-(sigma*std)] = thres-(sigma*std)
 
     return resid
 
@@ -130,13 +172,23 @@ def calc_p(time,signal,ephemeris,tel,spacing,shift=0,samp=2400,plot=True):
         
     p = ephemeris
 
-    frequency,power = LombScargle(time, signal,1/2400).autopower(minimum_frequency=p-4,maximum_frequency=p+4,samples_per_peak=1)
+    frequency,power = LombScargle(time, signal,1/samp).autopower(minimum_frequency=p-4,maximum_frequency=p+4,samples_per_peak=1)
         
     maxf = 4 #for high f
     minf = 0.5 #for high f
+
+    badfreqs = [15,30,60,120,42.5,41.6]
                         
     off = np.where(((frequency < p + maxf) & (frequency > p + minf)) | ((frequency > p - maxf) & (frequency < p - minf)))[0]
-    
+
+    #mask out known noise peaks
+    maskf = np.ones(len(off),dtype=bool)
+    for bad in badfreqs:
+        #print(frequency[np.where((frequency > bad - 0.1) & (frequency < bad + 0.1))[0]])
+        maskf[np.where((frequency[off] > bad - 0.1) & (frequency[off] < bad + 0.1))[0]] = 0
+
+    off = off[maskf]
+
     #print('period = ',p+shift)
     on = np.where((frequency > p + shift - spacing/2) & (frequency < p + shift + spacing/2))[0]
     if len(on) > 1:
@@ -152,7 +204,7 @@ def calc_p(time,signal,ephemeris,tel,spacing,shift=0,samp=2400,plot=True):
     
     if plot:
             plt.clf()
-            plt.figure(figsize=(6,4))
+            plt.figure(figsize=(8,6))
             plt.plot(frequency,power,'k')
             plt.axvline(p,color='k',alpha=0.2,linestyle='--',label='Pulse Frequency')
             plt.axvspan(frequency[on][0],frequency[on][-1],alpha=0.5,color='g',label='ON region')
@@ -163,19 +215,205 @@ def calc_p(time,signal,ephemeris,tel,spacing,shift=0,samp=2400,plot=True):
             plt.ylabel('Power [A.U.]')
             #plt.xlim(p-0.5, p+0.5)
 
-            #plt.legend()
+            plt.legend()
+            plt.show()
+            
+            plt.figure(figsize=(8,6))
+            plt.plot(frequency,power,'k')
+            plt.axvline(p,color='k',alpha=0.2,linestyle='--',label='Pulse Frequency')
+            plt.axvspan(frequency[on][0],frequency[on][-1],alpha=0.5,color='g',label='ON region')
+            plt.fill_between(frequency, 0, max(power), where=mask, color='r', alpha=0.5,label='OFF region')
+            plt.ticklabel_format(useOffset=False)
+            plt.title(f'T{tel} L-S Periodogram')
+            plt.xlabel('Frequency [Hz]')
+            plt.ylabel('Power [A.U.]')
+            plt.xlim(p-spacing,p+spacing)
+            plt.legend()
             plt.show()
 
     return P
 
+def gumbel_CDF(x,mu=3.72,b=1.83):
+    z = ((x - mu)/b)
+    return np.exp(-np.exp(-z))
+
+def calc_p_gumball(time,signal,ephemeris,tel,spacing,samp=2400,numpoints=6,plot=True):
+    ps = np.array(())
+    pvals = np.array(())
+        
+    p = ephemeris
+
+    frequency,power = LombScargle(time, signal,1/samp).autopower(minimum_frequency=p-4,maximum_frequency=p+4,samples_per_peak=1)
+        
+    maxf = 4 #for high f
+    minf = 0.5 #for high f
+
+    badfreqs = [15,30,60,120,42.5,41.6]
+                        
+    off = np.where(((frequency < p + maxf) & (frequency > p + minf)) | ((frequency > p - maxf) & (frequency < p - minf)))[0]
+
+    #mask out known noise peaks
+    maskf = np.ones(len(off),dtype=bool)
+    for bad in badfreqs:
+        #print(frequency[np.where((frequency > bad - 0.1) & (frequency < bad + 0.1))[0]])
+        maskf[np.where((frequency[off] > bad - 0.1) & (frequency[off] < bad + 0.1))[0]] = 0
+
+    off = off[maskf]
+
+    on = np.where((frequency > p - spacing * (numpoints/2)) & (frequency < p + spacing*(numpoints/2)))[0]
+    #on_small = np.where((frequency > p + shift - spacing) & (frequency < p + shift + spacing))[0]
+    
+    norm = np.std(power[off])/2
+        
+    mask = np.zeros(len(frequency))
+    mask[off] = 1
+    
+    pval = max(power[on])
+    #single_pval = max(power[on_small])
+    mu = 2.02632506 * np.log(numpoints)-0.1137353
+    beta = 1.47166634 * (numpoints/(1+numpoints))+0.53850982
+    P = 1-gumbel_CDF(pval/norm,mu=mu,b=beta)
+    
+    if plot:
+            plt.clf()
+            plt.figure(figsize=(8,6))
+            plt.plot(frequency,power,'k')
+            plt.axvline(p,color='k',alpha=0.2,linestyle='--',label='Pulse Frequency')
+            plt.axvspan(frequency[on][0],frequency[on][-1],alpha=0.5,color='g',label='ON region')
+            plt.fill_between(frequency, 0, max(power), where=mask, color='r', alpha=0.5,label='OFF region')
+            plt.ticklabel_format(useOffset=False)
+            plt.title(f'T{tel} L-S Periodogram')
+            plt.xlabel('Frequency [Hz]')
+            plt.ylabel('Power [A.U.]')
+            #plt.xlim(p-0.5, p+0.5)
+
+            plt.legend()
+            plt.show()
+            
+            plt.figure(figsize=(8,6))
+            plt.plot(frequency,power,'k',marker='o')
+            plt.axvline(p,color='k',alpha=0.2,linestyle='--',label='Pulse Frequency')
+            plt.axvspan(frequency[on][0],frequency[on][-1],alpha=0.5,color='g',label='ON region')
+            plt.fill_between(frequency, 0, max(power), where=mask, color='r', alpha=0.5,label='OFF region')
+            #plt.plot(freqfit,gauss(freqfit,*popt),label='Gaussian Fit')
+
+            plt.ticklabel_format(useOffset=False)
+            plt.title(f'T{tel} L-S Periodogram')
+            plt.xlabel('Frequency [Hz]')
+            plt.ylabel('Power [A.U.]')
+            plt.xlim(p-spacing*(numpoints/2)-spacing,p+spacing*(numpoints/2))
+            plt.legend()
+            plt.show()
+
+    return P
+
+def calc_fourier(time,signal,ephemeris,tel,spacing,samp=2400,numpoints=6):
+    ps = np.array(())
+    pvals = np.array(())
+        
+    p = ephemeris
+        
+    maxf = 4 #for high f
+    minf = 0.5 #for high f
+
+    badfreqs = [15,30,60,120,42.5,41.6]
+    
+    fft = np.fft.rfft(signal,norm='ortho')
+    frequency = np.fft.rfftfreq(len(signal),1/samp)
+                        
+    off = np.where(((frequency < p + maxf) & (frequency > p + minf)) | ((frequency > p - maxf) & (frequency < p - minf)))[0]
+
+    #mask out known noise peaks
+    maskf = np.ones(len(off),dtype=bool)
+    for bad in badfreqs:
+        #print(frequency[np.where((frequency > bad - 0.1) & (frequency < bad + 0.1))[0]])
+        maskf[np.where((frequency[off] > bad - 0.1) & (frequency[off] < bad + 0.1))[0]] = 0
+
+    off = off[maskf]
+
+    on = np.where((frequency > p - spacing * (numpoints/2)) & (frequency < p + spacing*(numpoints/2)))[0]
+    #on_small = np.where((frequency > p + shift - spacing) & (frequency < p + shift + spacing))[0]
+    
+    return fft[on], fft[off]
+
+def calc_p_crab(time,signal,ephemeris,tel,spacing,shift=0,samp=2400,plot=True):
+    ps = np.array(())
+    pvals = np.array(())
+        
+    p = ephemeris
+
+    frequency,power = LombScargle(time, signal,1/samp).autopower(minimum_frequency=p-4,maximum_frequency=p+4,samples_per_peak=1)
+        
+    maxf = 4 #for high f
+    minf = 0.5 #for high f
+
+    badfreqs = [15,60,120]
+                        
+    off = np.where(((frequency < p + maxf) & (frequency > p + minf)) | ((frequency > p - maxf) & (frequency < p - minf)))[0]
+
+    #mask out known noise peaks
+    maskf = np.ones(len(off),dtype=bool)
+    for bad in badfreqs:
+        #print(frequency[np.where((frequency > bad - 0.1) & (frequency < bad + 0.1))[0]])
+        maskf[np.where((frequency[off] > bad - 0.1) & (frequency[off] < bad + 0.1))[0]] = 0
+
+    off = off[maskf]
+
+    #print('period = ',p+shift)
+    on = np.where(power == max(power))[0]
+    if len(on) > 1:
+        print('Too many values in ON region')
+        return 1
+
+    norm = np.std(power[off])/2
+        
+    mask = np.zeros(len(frequency))
+    mask[off] = 1
+                        
+    P = stats.chi2.sf(max(power)/norm, 2)
+    
+    if plot:
+            plt.clf()
+            plt.figure(figsize=(8,6))
+            plt.plot(frequency,power,'k')
+            plt.axvline(p,color='k',alpha=0.2,linestyle='--',label='Pulse Frequency')
+            plt.axvspan(frequency[on][0],frequency[on][-1],alpha=0.5,color='g',label='ON region')
+            plt.fill_between(frequency, 0, max(power), where=mask, color='r', alpha=0.5,label='OFF region')
+            plt.ticklabel_format(useOffset=False)
+            plt.title(f'T{tel} L-S Periodogram')
+            plt.xlabel('Frequency [Hz]')
+            plt.ylabel('Power [A.U.]')
+            #plt.xlim(p-0.5, p+0.5)
+
+            plt.legend()
+            plt.show()
+            
+            plt.figure(figsize=(8,6))
+            plt.plot(frequency,power,'k')
+            plt.axvline(p,color='k',alpha=0.2,linestyle='--',label='Pulse Frequency')
+            plt.axvspan(frequency[on][0],frequency[on][-1],alpha=0.5,color='g',label='ON region')
+            plt.fill_between(frequency, 0, max(power), where=mask, color='r', alpha=0.5,label='OFF region')
+            plt.ticklabel_format(useOffset=False)
+            plt.title(f'T{tel} L-S Periodogram')
+            plt.xlabel('Frequency [Hz]')
+            plt.ylabel('Power [A.U.]')
+            plt.xlim(p-spacing,p+spacing)
+            plt.legend()
+            plt.show()
+
+
+    return P, frequency[on], max(power)/np.std(power[off])
+
 def calc_sigma(pvals):
-    p_combined = 0
-    for p in pvals:  
-        p_combined += np.log(p)
-    p_combined = -2*p_combined
-    overall_p = stats.chi2.sf(p_combined, len(pvals)*2)
+    #p_combined = 0
+    #for p in pvals:  
+    #    p_combined += np.log(p)
+    #p_combined = -2*p_combined
+    p_combined = combine_pvalues(pvals,method='fisher').statistic
+    overall_p = 1-stats.chi2.sf(p_combined, len(pvals)*2)
     #print(overall_p)
-    return stats.norm.ppf(1-overall_p)
+    #return stats.norm.ppf(1-overall_p)
+    return stats.norm.ppf(overall_p)
 
 def plot_cum_sig(pvals,chunk_dur):
     cumulative = []
@@ -187,9 +425,9 @@ def plot_cum_sig(pvals,chunk_dur):
     cumulative.append(calc_sigma(pvals))
 
     time = np.arange(0,chunk_dur * (len(pvals)+1),chunk_dur)
-    plt.plot(time,cumulative,'k',marker='o',ls='-')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Sigma')
+    plt.plot(time,cumulative,'darkseagreen',marker='o',ls='-')
+    plt.xlabel('Time (h)')
+    plt.ylabel('Significance (sigma)')
     return
 
 def get_p(file,date,diff=False):
@@ -219,3 +457,4 @@ def get_p(file,date,diff=False):
         return m.F0.quantity.value, (F0_original - m.F0.quantity).value
     else:
         return m.F0.quantity.value
+    
